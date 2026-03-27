@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Local environment files
+hades_setup/.env
+
+# Hugging Face runtime data
+hf_cache/
+models/
+
+# Downloaded installers and local helper state
+hades_setup/Miniconda3-latest-Linux-*.sh
+
+# Notebook and editor noise
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.DS_Store
