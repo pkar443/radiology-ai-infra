@@ -19,6 +19,7 @@ bash hades_setup/install_gh.sh
 bash hades_setup/gh_auth.sh
 bash hades_setup/hf_login.sh
 bash hades_setup/run_medgemma_test.sh
+bash remote_infer/start.sh
 ```
 
 ## What Bootstrap Does
@@ -49,7 +50,33 @@ hades_setup/
   smoke_test_transformers.py
   test_medgemma.py
   bin/df
+remote_infer/
+  README.md
+  app.py
+  auth.py
+  config.py
+  model_loader.py
+  schemas.py
+  utils.py
+  start.sh
+  test_request.sh
 ```
+
+## Remote Inference Service
+
+After model access and setup are working, you can start the minimal FastAPI service on Hades:
+
+```bash
+bash remote_infer/start.sh
+```
+
+Then test it locally on Hades:
+
+```bash
+bash remote_infer/test_request.sh
+```
+
+Service details and SSH tunnel usage are documented in [remote_infer/README.md](./remote_infer/README.md).
 
 ## Notes
 
