@@ -41,17 +41,38 @@ class TextInferResponse(BaseModel):
 class ReportInferRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    prompt: str | None = Field(default=None, min_length=1, max_length=24000)
     study_id: str | None = Field(default=None, max_length=128)
-    modality: str = Field(min_length=1, max_length=64)
-    body_part: str = Field(min_length=1, max_length=128)
+    modality: str | None = Field(default=None, min_length=1, max_length=64)
+    body_part: str | None = Field(default=None, min_length=1, max_length=128)
     clinical_context: str | None = Field(default=None, max_length=2000)
-    findings_input: str = Field(min_length=1, max_length=12000)
+    findings_input: str | None = Field(default=None, min_length=1, max_length=12000)
     request_id: str | None = Field(default=None, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_prompt_or_inputs(self) -> "ReportInferRequest":
+        if self.prompt and self.prompt.strip():
+            return self
+
+        text_fields = [
+            self.study_id,
+            self.modality,
+            self.body_part,
+            self.clinical_context,
+            self.findings_input,
+        ]
+        if any(value and value.strip() for value in text_fields):
+            return self
+
+        raise ValueError("Provide either prompt or report input fields.")
 
 
 class ReportInferResponse(BaseModel):
     request_id: str
     report_text: str
+    technique: str
+    findings: str
+    impression: str
     model_id: str
     device: str
     inference_time_ms: int

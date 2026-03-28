@@ -25,7 +25,13 @@ from .schemas import (
     TextInferRequest,
     TextInferResponse,
 )
-from .utils import build_report_prompt, ensure_request_id, log_event, setup_logging
+from .utils import (
+    ensure_request_id,
+    log_event,
+    normalize_report_sections,
+    resolve_report_prompt,
+    setup_logging,
+)
 
 
 setup_logging()
@@ -186,12 +192,17 @@ async def infer_text(payload: TextInferRequest) -> TextInferResponse:
 @app.post("/infer-report-test", response_model=ReportInferResponse, dependencies=[Depends(verify_bearer_token)])
 async def infer_report_test(payload: ReportInferRequest) -> ReportInferResponse:
     request_id = ensure_request_id(payload.request_id or payload.study_id)
-    prompt = build_report_prompt(
-        modality=payload.modality,
-        body_part=payload.body_part,
-        findings_input=payload.findings_input,
-        clinical_context=payload.clinical_context,
-    )
+    try:
+        prompt = resolve_report_prompt(
+            prompt=payload.prompt,
+            study_id=payload.study_id,
+            modality=payload.modality,
+            body_part=payload.body_part,
+            clinical_context=payload.clinical_context,
+            findings_input=payload.findings_input,
+        )
+    except ValueError as exc:
+        raise InferenceExecutionError(f"Report prompt resolution failed: {exc}") from exc
 
     do_sample = settings.medgemma_default_temperature > 0
 
@@ -203,6 +214,7 @@ async def infer_report_test(payload: ReportInferRequest) -> ReportInferResponse:
         study_id=payload.study_id,
         modality=payload.modality,
         body_part=payload.body_part,
+        prompt_source="direct" if payload.prompt and payload.prompt.strip() else "legacy_fields",
     )
 
     result = service.generate_text(
@@ -214,6 +226,10 @@ async def infer_report_test(payload: ReportInferRequest) -> ReportInferResponse:
             do_sample=do_sample,
         ),
     )
+    try:
+        normalized_report = normalize_report_sections(result.text)
+    except ValueError as exc:
+        raise InferenceExecutionError(f"Generated report was empty or unusable: {exc}") from exc
 
     log_event(
         LOGGER,
@@ -221,11 +237,17 @@ async def infer_report_test(payload: ReportInferRequest) -> ReportInferResponse:
         "infer_report_success",
         request_id=request_id,
         inference_time_ms=result.inference_time_ms,
+        technique_present=bool(normalized_report["technique"]),
+        findings_present=bool(normalized_report["findings"]),
+        impression_present=bool(normalized_report["impression"]),
     )
 
     return ReportInferResponse(
         request_id=request_id,
-        report_text=result.text,
+        report_text=normalized_report["report_text"],
+        technique=normalized_report["technique"],
+        findings=normalized_report["findings"],
+        impression=normalized_report["impression"],
         model_id=result.model_id,
         device=result.device,
         inference_time_ms=result.inference_time_ms,

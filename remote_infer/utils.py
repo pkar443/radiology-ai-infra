@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import uuid
@@ -11,6 +12,7 @@ from typing import Any
 
 
 LOGGER = logging.getLogger("remote_infer.utils")
+_SECTION_PATTERN = re.compile(r"(?im)^\s*(technique|findings|impression)\s*:\s*")
 
 
 def setup_logging() -> None:
@@ -85,24 +87,109 @@ def ensure_request_id(request_id: str | None) -> str:
     return uuid.uuid4().hex
 
 
-def build_report_prompt(
-    modality: str,
-    body_part: str,
-    findings_input: str,
+def resolve_report_prompt(
+    prompt: str | None,
+    study_id: str | None,
+    modality: str | None,
+    body_part: str | None,
     clinical_context: str | None,
+    findings_input: str | None,
 ) -> str:
-    clinical_text = clinical_context.strip() if clinical_context else "Not provided."
+    if prompt and prompt.strip():
+        return prompt.strip()
 
-    return (
-        "You are drafting a concise radiology report.\n"
-        "Use only the information provided below.\n"
-        "Do not invent patient demographics, history, or findings.\n"
-        "Return plain text only.\n"
-        "Write the report with exactly these sections:\n"
-        "Findings:\n"
-        "Impression:\n\n"
-        f"Modality: {modality}\n"
-        f"Body part: {body_part}\n"
-        f"Clinical context: {clinical_text}\n"
-        f"Source findings: {findings_input.strip()}\n"
-    )
+    parts: list[str] = []
+    if study_id and study_id.strip():
+        parts.append(f"Study ID: {study_id.strip()}")
+    if modality and modality.strip():
+        parts.append(f"Modality: {modality.strip()}")
+    if body_part and body_part.strip():
+        parts.append(f"Body part: {body_part.strip()}")
+    if clinical_context and clinical_context.strip():
+        parts.append(f"Clinical context: {clinical_context.strip()}")
+    if findings_input and findings_input.strip():
+        parts.append("Findings input:")
+        parts.append(findings_input.strip())
+
+    combined_prompt = "\n".join(parts).strip()
+    if not combined_prompt:
+        raise ValueError("Either prompt or report input fields must be provided.")
+
+    return combined_prompt
+
+
+def _clean_report_text(text: str) -> str:
+    cleaned = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+    if cleaned.startswith("```") and cleaned.endswith("```"):
+        lines = cleaned.splitlines()
+        if len(lines) >= 2:
+            cleaned = "\n".join(lines[1:-1]).strip()
+
+    return cleaned
+
+
+def _normalize_section_text(text: str) -> str:
+    lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines()]
+    return "\n".join(line for line in lines if line)
+
+
+def _format_report_text(technique: str, findings: str, impression: str) -> str:
+    sections = [
+        ("Technique", technique.strip()),
+        ("Findings", findings.strip()),
+        ("Impression", impression.strip()),
+    ]
+
+    formatted_sections = []
+    for label, content in sections:
+        if content:
+            formatted_sections.append(f"{label}:\n{content}")
+        else:
+            formatted_sections.append(f"{label}:")
+
+    return "\n\n".join(formatted_sections)
+
+
+def normalize_report_sections(raw_text: str) -> dict[str, str]:
+    cleaned = _clean_report_text(raw_text)
+    if not cleaned:
+        raise ValueError("Generated report text is empty.")
+
+    matches = list(_SECTION_PATTERN.finditer(cleaned))
+    if not matches:
+        findings = _normalize_section_text(cleaned)
+        return {
+            "report_text": _format_report_text("", findings, ""),
+            "technique": "",
+            "findings": findings,
+            "impression": "",
+        }
+
+    sections = {"technique": "", "findings": "", "impression": ""}
+    for index, match in enumerate(matches):
+        section_name = match.group(1).lower()
+        section_start = match.end()
+        section_end = matches[index + 1].start() if index + 1 < len(matches) else len(cleaned)
+        section_body = _normalize_section_text(cleaned[section_start:section_end])
+        sections[section_name] = section_body
+
+    if not sections["findings"] and not sections["impression"]:
+        findings = _normalize_section_text(cleaned)
+        return {
+            "report_text": _format_report_text("", findings, ""),
+            "technique": "",
+            "findings": findings,
+            "impression": "",
+        }
+
+    return {
+        "report_text": _format_report_text(
+            sections["technique"],
+            sections["findings"],
+            sections["impression"],
+        ),
+        "technique": sections["technique"],
+        "findings": sections["findings"],
+        "impression": sections["impression"],
+    }

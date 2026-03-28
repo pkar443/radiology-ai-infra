@@ -60,6 +60,7 @@ remote_infer/
   utils.py
   start.sh
   test_request.sh
+  tests/
 ```
 
 ## Remote Inference Service
@@ -67,6 +68,9 @@ remote_infer/
 After model access and setup are working, you can start the minimal FastAPI service on Hades:
 
 ```bash
+cd /home/pkar443/medgemma_workspace
+source /home/pkar443/miniconda3/etc/profile.d/conda.sh
+conda activate medgemma-hades
 bash remote_infer/start.sh
 ```
 
@@ -74,6 +78,13 @@ Then test it locally on Hades:
 
 ```bash
 bash remote_infer/test_request.sh
+```
+
+For laptop access later, tunnel the local-only API port:
+
+```bash
+ssh -N -L 8009:127.0.0.1:8009 pkar443@10.104.147.2
+curl.exe http://127.0.0.1:8009/health
 ```
 
 Service details and SSH tunnel usage are documented in [remote_infer/README.md](./remote_infer/README.md).

@@ -49,9 +49,6 @@ curl -sS -X POST \
   "${AUTH_ARGS[@]}" \
   -d '{
     "study_id": "ct-abd-smoke-001",
-    "modality": "CT",
-    "body_part": "Abdomen",
-    "clinical_context": "Abdominal pain.",
-    "findings_input": "Mild diffuse hepatic steatosis. No focal liver lesion. Gallbladder is unremarkable. No biliary ductal dilatation. Pancreas, spleen, adrenal glands, and kidneys are without acute abnormality. No bowel obstruction. No ascites.",
+    "prompt": "Draft a concise radiology report with exactly these sections and labels: Technique, Findings, Impression. Do not use markdown or bullet points. Do not invent demographics. Technique may be blank if unknown. Modality: CT. Body part: Abdomen. Clinical context: Abdominal pain. Source findings: Mild diffuse hepatic steatosis. No focal liver lesion. Gallbladder is unremarkable. No biliary ductal dilatation. Pancreas, spleen, adrenal glands, and kidneys are without acute abnormality. No bowel obstruction. No ascites.",
     "request_id": "report-smoke-test"
   }' | pretty_print
