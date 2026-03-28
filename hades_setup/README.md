@@ -10,6 +10,8 @@ This directory contains the reusable setup logic that powers the repository-leve
 - `smoke_test_torch.py`: verifies Torch import and runs a small matrix multiplication.
 - `smoke_test_transformers.py`: imports Torch and Transformers, downloads `distilgpt2` on first run, and performs a tiny text-generation test.
 - `hf_login.sh`: checks for a Hugging Face login token and guides you through `hf auth login` when needed.
+- `install_gh.sh`: installs GitHub CLI in user space under `~/.local/gh-cli` and symlinks `~/.local/bin/gh`.
+- `gh_auth.sh`: checks GitHub CLI authentication and prints the exact `gh auth login` flow for Hades.
 - `test_medgemma.py`: loads MedGemma 1.5 from `MEDGEMMA_MODEL_ID` or `MEDGEMMA_MODEL_PATH` and runs a text prompt test with timing.
 - `run_medgemma_test.sh`: activates the conda environment, loads `.env`, and runs `test_medgemma.py`.
 - `start_jupyter.sh`: starts Jupyter Lab on localhost with a configurable port.
@@ -22,6 +24,8 @@ Run these commands from the repository root:
 ```bash
 bash bootstrap.sh
 cp hades_setup/env.example hades_setup/.env
+bash hades_setup/install_gh.sh
+bash hades_setup/gh_auth.sh
 bash hades_setup/check_gpu.sh
 bash hades_setup/hf_login.sh
 bash hades_setup/run_medgemma_test.sh
@@ -40,11 +44,13 @@ bash hades_setup/start_jupyter.sh 8890
 - MedGemma 1.5 on Hugging Face uses the Transformers ecosystem and the model card explicitly calls out `accelerate`.
 - The smoke test intentionally uses `distilgpt2` so setup validation stays fast and lightweight.
 - When you are ready to load MedGemma itself, keep the dedicated environment and cache settings from `.env` so model downloads stay in user space.
+- GitHub CLI installation and authentication are optional for setup, but they are helpful if you want to push from Hades directly.
 
 ## Troubleshooting
 
 - If `setup_env.sh` says it cannot find `conda`, rerun it. The script will install Miniconda into `/home/pkar443/miniconda3` if needed.
 - If you want a single-command fresh-machine flow, use `bash bootstrap.sh` from the repository root.
+- If `git push` fails for lack of credentials, run `bash hades_setup/install_gh.sh`, then `bash hades_setup/gh_auth.sh`, then complete the interactive `gh auth login --git-protocol https --web` flow.
 - If PyTorch imports but `torch.cuda.is_available()` is `False`, verify that `nvidia-smi` still works in the same SSH session and rerun `bash hades_setup/check_gpu.sh`.
 - If the Transformers smoke test hangs on first run, it is usually downloading model files. Check network access to Hugging Face and the cache directories in `.env`.
 - If MedGemma loading fails with a 401/403-style Hugging Face error, run `bash hades_setup/hf_login.sh` and make sure your account has accepted the model terms for `google/medgemma-1.5-4b-it`.

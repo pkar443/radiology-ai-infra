@@ -15,6 +15,8 @@ After bootstrap finishes:
 ```bash
 cp hades_setup/env.example hades_setup/.env
 bash hades_setup/check_gpu.sh
+bash hades_setup/install_gh.sh
+bash hades_setup/gh_auth.sh
 bash hades_setup/hf_login.sh
 bash hades_setup/run_medgemma_test.sh
 ```
@@ -53,5 +55,6 @@ hades_setup/
 
 - Everything stays in user space. No `sudo`, no system package changes.
 - Runtime caches, downloaded models, tokens, and Miniconda installers are intentionally ignored by git.
+- GitHub CLI can be installed in user space with `bash hades_setup/install_gh.sh`; it installs to `~/.local/gh-cli` and symlinks `~/.local/bin/gh`.
 - MedGemma itself may still require approved Hugging Face access before `run_medgemma_test.sh` can download the model.
 - Detailed script usage lives in [hades_setup/README.md](./hades_setup/README.md).

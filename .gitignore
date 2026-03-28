@@ -11,6 +11,8 @@ models/
 
 # Downloaded installers and local helper state
 hades_setup/Miniconda3-latest-Linux-*.sh
+hades_setup/gh_*.tar.gz
+hades_setup/.downloads/
 
 # Notebook and editor noise
 .ipynb_checkpoints/
