@@ -31,6 +31,21 @@ def resolve_model_name() -> str:
     raise ValueError("Set MEDGEMMA_MODEL_ID or MEDGEMMA_MODEL_PATH before running this script.")
 
 
+def resolve_device_map() -> tuple[str | dict[str, int], str]:
+    normalized = os.environ.get("MEDGEMMA_DEVICE_MAP", "single").strip().lower() or "single"
+
+    if not torch.cuda.is_available():
+        return "cpu", "cpu"
+
+    if normalized in {"single", "single-gpu", "single_gpu", "first"}:
+        return {"": 0}, "single"
+
+    if normalized == "auto":
+        return "auto", "auto"
+
+    raise ValueError(f"Unsupported MEDGEMMA_DEVICE_MAP value {normalized!r}. Use 'single' or 'auto'.")
+
+
 def build_messages() -> list[dict]:
     prompt_text = (
         "You are reviewing a chest radiograph report draft.\n"
@@ -76,18 +91,21 @@ def main() -> int:
     model_name = resolve_model_name()
     dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
     device_label = "cuda" if torch.cuda.is_available() else "cpu"
+    device_map, device_map_label = resolve_device_map()
 
     print(f"model source: {model_name}")
     print(f"device: {device_label}")
     print(f"dtype: {dtype}")
+    print(f"device_map: {device_map_label}")
 
     try:
         load_start = time.perf_counter()
         text_io, inputs = prepare_inputs(model_name)
         model = AutoModelForImageTextToText.from_pretrained(
             model_name,
-            device_map="auto",
-            torch_dtype=dtype,
+            device_map=device_map,
+            dtype=dtype,
+            offload_buffers=True,
         )
         load_seconds = time.perf_counter() - load_start
 
@@ -96,10 +114,14 @@ def main() -> int:
 
         infer_start = time.perf_counter()
         with torch.inference_mode():
+            pad_token_id = getattr(text_io, "pad_token_id", None)
+            if pad_token_id is None:
+                pad_token_id = getattr(text_io, "eos_token_id", None)
             output_ids = model.generate(
                 **inputs,
                 max_new_tokens=160,
                 do_sample=False,
+                pad_token_id=pad_token_id,
             )
         if torch.cuda.is_available():
             torch.cuda.synchronize()

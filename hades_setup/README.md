@@ -13,7 +13,9 @@ This directory contains the reusable setup logic that powers the repository-leve
 - `install_gh.sh`: installs GitHub CLI in user space under `~/.local/gh-cli` and symlinks `~/.local/bin/gh`.
 - `gh_auth.sh`: checks GitHub CLI authentication and prints the exact `gh auth login` flow for Hades.
 - `test_medgemma.py`: loads MedGemma 1.5 from `MEDGEMMA_MODEL_ID` or `MEDGEMMA_MODEL_PATH` and runs a text prompt test with timing.
+- `test_medgemma_raw_image.py`: downloads a reference medical JPEG and prints MedGemma's raw image-text output without Hades post-processing.
 - `run_medgemma_test.sh`: activates the conda environment, loads `.env`, and runs `test_medgemma.py`.
+- `run_medgemma_raw_image_test.sh`: activates the conda environment, loads `.env`, and runs `test_medgemma_raw_image.py`.
 - `start_jupyter.sh`: starts Jupyter Lab on localhost with a configurable port.
 - `env.example`: template for local workstation environment variables.
 
@@ -40,6 +42,7 @@ bash hades_setup/start_jupyter.sh 8890
 ## Notes About MedGemma 1.5
 
 - The example environment file defaults `MEDGEMMA_MODEL_ID` to `google/medgemma-1.5-4b-it`.
+- The example environment file defaults `MEDGEMMA_DEVICE_MAP=single`, which pins the full 4B model to the first visible GPU.
 - The example environment file computes `REPO_ROOT` dynamically and keeps `HF_HOME`, `HUGGINGFACE_HUB_CACHE`, and `MODELS_DIR` inside the cloned repository workspace.
 - MedGemma 1.5 on Hugging Face uses the Transformers ecosystem and the model card explicitly calls out `accelerate`.
 - The smoke test intentionally uses `distilgpt2` so setup validation stays fast and lightweight.
@@ -56,6 +59,7 @@ bash hades_setup/start_jupyter.sh 8890
 - If MedGemma loading fails with a 401/403-style Hugging Face error, run `bash hades_setup/hf_login.sh` and make sure your account has accepted the model terms for `google/medgemma-1.5-4b-it`.
 - If Jupyter starts but you cannot connect from VS Code, confirm the SSH port forward points to the same localhost port you passed to `start_jupyter.sh`.
 - If you want both RTX PRO 6000 GPUs visible in the environment, change `CUDA_VISIBLE_DEVICES=0` to `CUDA_VISIBLE_DEVICES=0,1` in `hades_setup/.env`.
+- If MedGemma returns empty or pad-only generations on a multi-GPU workstation, keep `CUDA_VISIBLE_DEVICES=0` or set `MEDGEMMA_DEVICE_MAP=single` so the model stays on one visible GPU.
 
 ## Assumptions
 

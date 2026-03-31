@@ -2,11 +2,11 @@
 set -euo pipefail
 
 log() {
-  printf '[run_medgemma_test] %s\n' "$*"
+  printf '[run_medgemma_raw_image_test] %s\n' "$*"
 }
 
 die() {
-  printf '[run_medgemma_test] ERROR: %s\n' "$*" >&2
+  printf '[run_medgemma_raw_image_test] ERROR: %s\n' "$*" >&2
   exit 1
 }
 
@@ -61,5 +61,5 @@ fi
 
 conda activate "${ENV_NAME}"
 
-log "Running MedGemma test with environment ${ENV_NAME} (device_map=${MEDGEMMA_DEVICE_MAP})"
-exec python "${SCRIPT_DIR}/test_medgemma.py"
+log "Running raw MedGemma image test with environment ${ENV_NAME} (device_map=${MEDGEMMA_DEVICE_MAP})"
+exec python "${SCRIPT_DIR}/test_medgemma_raw_image.py" "$@"
