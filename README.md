@@ -69,10 +69,10 @@ After model access and setup are working, you can start the minimal FastAPI serv
 
 ```bash
 cd /home/pkar443/medgemma_workspace
-source /home/pkar443/miniconda3/etc/profile.d/conda.sh
-conda activate medgemma-hades
 bash remote_infer/start.sh
 ```
+
+`remote_infer/start.sh` is a bash script and activates the `medgemma-hades` conda environment internally. If you are in `/bin/sh`, `source ...` will fail because `source` is not a POSIX `sh` builtin; use `. /home/pkar443/miniconda3/etc/profile.d/conda.sh` only if you need to activate conda manually in `sh`.
 
 Then test it locally on Hades:
 
@@ -85,6 +85,13 @@ For laptop access later, tunnel the local-only API port:
 ```bash
 ssh -N -L 8009:127.0.0.1:8009 pkar443@10.104.147.2
 curl.exe http://127.0.0.1:8009/health
+```
+
+If your laptop reports `bind [127.0.0.1]:8009: Permission denied` or the port is already in use, keep the Hades side on `127.0.0.1:8009` and choose a different free local port instead:
+
+```bash
+ssh -N -L 18009:127.0.0.1:8009 pkar443@10.104.147.2
+curl.exe http://127.0.0.1:18009/health
 ```
 
 Service details and SSH tunnel usage are documented in [remote_infer/README.md](./remote_infer/README.md).

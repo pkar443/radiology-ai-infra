@@ -76,14 +76,10 @@ Start the Hades inference service from a Hades terminal:
 
 ```bash
 cd /home/pkar443/medgemma_workspace
-
-# activate conda
-source /home/pkar443/miniconda3/etc/profile.d/conda.sh
-conda activate medgemma-hades
-
-# start the service
 bash remote_infer/start.sh
 ```
+
+`remote_infer/start.sh` activates the `medgemma-hades` conda environment internally. If you open a plain `/bin/sh` shell, `source ...` will fail there; use `. /home/pkar443/miniconda3/etc/profile.d/conda.sh` only if you need manual activation in `sh`.
 
 Leave that terminal running.
 
@@ -111,10 +107,22 @@ From your laptop, create the SSH tunnel:
 ssh -N -L 8009:127.0.0.1:8009 pkar443@10.104.147.2
 ```
 
+If the laptop-side bind to `8009` fails, choose any other free local port and keep the remote side on `127.0.0.1:8009`:
+
+```bash
+ssh -N -L 18009:127.0.0.1:8009 pkar443@10.104.147.2
+```
+
 Then test through the tunnel:
 
 ```bash
 curl.exe http://127.0.0.1:8009/health
+```
+
+If you used `18009` locally, test that port instead:
+
+```bash
+curl.exe http://127.0.0.1:18009/health
 ```
 
 ## Prompt Ownership
