@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from .auth import verify_bearer_token
 from .config import get_settings
@@ -19,10 +20,12 @@ from .model_loader import (
     RemoteInferError,
     get_model_service,
 )
+from .orthanc_pull import build_image_request_from_orthanc_reference
 from .schemas import (
     HealthResponse,
     ImageReportInferRequest,
     ImageReportInferResponse,
+    OrthancReferenceInferRequest,
     ReportInferRequest,
     ReportInferResponse,
     TextInferRequest,
@@ -102,6 +105,29 @@ def _error_response(status_code: int, error: str, message: str) -> JSONResponse:
         status_code=status_code,
         content={"error": error, "message": message},
     )
+
+
+def _parse_image_request_payload(raw_payload: dict[str, object]) -> tuple[ImageReportInferRequest, str, dict[str, object]]:
+    try:
+        direct_payload = ImageReportInferRequest(**raw_payload)
+    except ValidationError as direct_error:
+        try:
+            orthanc_reference = OrthancReferenceInferRequest(**raw_payload)
+        except ValidationError as reference_error:
+            raise InvalidPayloadError(
+                "Request validation failed for both image payload and Orthanc reference payload. "
+                f"image_errors={direct_error.errors()} orthanc_errors={reference_error.errors()}"
+            ) from reference_error
+
+        hydrated_payload, orthanc_context = build_image_request_from_orthanc_reference(
+            orthanc_reference,
+            default_base_url=settings.orthanc_base_url,
+            username=settings.orthanc_username,
+            password=settings.orthanc_password,
+        )
+        return hydrated_payload, "orthanc_reference", orthanc_context
+
+    return direct_payload, "direct_image_payload", {}
 
 
 @app.exception_handler(ModelNotLoadedError)
@@ -363,7 +389,8 @@ async def infer_report_test(payload: ReportInferRequest) -> ReportInferResponse:
 
 
 @app.post("/infer-image-report", response_model=ImageReportInferResponse, dependencies=[Depends(verify_bearer_token)])
-async def infer_image_report(payload: ImageReportInferRequest) -> ImageReportInferResponse:
+async def infer_image_report(raw_payload: dict[str, object]) -> ImageReportInferResponse:
+    payload, payload_mode, orthanc_context = _parse_image_request_payload(raw_payload)
     request_id = ensure_request_id(payload.request_id or payload.study_id)
     generation_config = GenerationConfig(
         max_new_tokens=settings.medgemma_image_report_max_new_tokens,
@@ -381,6 +408,7 @@ async def infer_image_report(payload: ImageReportInferRequest) -> ImageReportInf
         logging.INFO,
         "infer_image_report_request",
         request_id=request_id,
+        payload_mode=payload_mode,
         study_id=payload.study_id,
         series_uid=payload.series_uid,
         modality=payload.modality,
@@ -391,6 +419,7 @@ async def infer_image_report(payload: ImageReportInferRequest) -> ImageReportInf
         slice_count=len(flattened_anchor_slices),
         ordered_slices=ordered_slices,
         payload_summary={
+            "payload_mode": payload_mode,
             "study_id": payload.study_id,
             "series_uid": payload.series_uid,
             "modality": payload.modality,
@@ -399,6 +428,7 @@ async def infer_image_report(payload: ImageReportInferRequest) -> ImageReportInf
             "anchor_group_count": payload.anchor_group_count,
             "slice_count": len(flattened_anchor_slices),
         },
+        orthanc_context=orthanc_context or None,
         anchor_groups=[
             {
                 "anchor_id": anchor.anchor_id,

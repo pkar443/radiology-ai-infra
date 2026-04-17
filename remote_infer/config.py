@@ -29,6 +29,10 @@ def _read_bool(name: str, default: bool) -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
+def _read_str(name: str, default: str = "") -> str:
+    return os.environ.get(name, default).strip()
+
+
 bootstrap_env_from_file(DEFAULT_ENV_FILE)
 
 
@@ -46,6 +50,9 @@ class Settings:
     remote_infer_port: int
     remote_infer_auth_token: str
     remote_infer_debug: bool
+    orthanc_base_url: str
+    orthanc_username: str
+    orthanc_password: str
     medgemma_max_new_tokens: int
     medgemma_default_temperature: float
     medgemma_default_top_p: float
@@ -74,16 +81,19 @@ def get_settings() -> Settings:
     return Settings(
         repo_root=repo_root,
         env_file=DEFAULT_ENV_FILE,
-        medgemma_model_id=os.environ.get("MEDGEMMA_MODEL_ID", "google/medgemma-1.5-4b-it").strip(),
-        medgemma_model_path=os.environ.get("MEDGEMMA_MODEL_PATH", "").strip(),
-        medgemma_device_map=os.environ.get("MEDGEMMA_DEVICE_MAP", "single").strip() or "single",
+        medgemma_model_id=_read_str("MEDGEMMA_MODEL_ID", "google/medgemma-1.5-4b-it"),
+        medgemma_model_path=_read_str("MEDGEMMA_MODEL_PATH"),
+        medgemma_device_map=_read_str("MEDGEMMA_DEVICE_MAP", "single") or "single",
         hf_home=hf_home,
         huggingface_hub_cache=huggingface_hub_cache,
-        cuda_visible_devices=os.environ.get("CUDA_VISIBLE_DEVICES", "").strip(),
-        remote_infer_host=os.environ.get("REMOTE_INFER_HOST", "127.0.0.1").strip() or "127.0.0.1",
+        cuda_visible_devices=_read_str("CUDA_VISIBLE_DEVICES"),
+        remote_infer_host=_read_str("REMOTE_INFER_HOST", "127.0.0.1") or "127.0.0.1",
         remote_infer_port=_read_int("REMOTE_INFER_PORT", 8009),
-        remote_infer_auth_token=os.environ.get("REMOTE_INFER_AUTH_TOKEN", "").strip(),
+        remote_infer_auth_token=_read_str("REMOTE_INFER_AUTH_TOKEN"),
         remote_infer_debug=_read_bool("REMOTE_INFER_DEBUG", False),
+        orthanc_base_url=_read_str("ORTHANC_BASE_URL"),
+        orthanc_username=_read_str("ORTHANC_USERNAME"),
+        orthanc_password=_read_str("ORTHANC_PASSWORD"),
         medgemma_max_new_tokens=_read_int("MEDGEMMA_MAX_NEW_TOKENS", 180),
         medgemma_default_temperature=_read_float("MEDGEMMA_DEFAULT_TEMPERATURE", 0.0),
         medgemma_default_top_p=_read_float("MEDGEMMA_DEFAULT_TOP_P", 1.0),

@@ -80,21 +80,15 @@ Then test it locally on Hades:
 bash remote_infer/test_request.sh
 ```
 
-For laptop access later, tunnel the local-only API port:
+For direct dashboard access on the university network, expose the API on the Hades interface and test it directly:
 
 ```bash
-ssh -N -L 8009:127.0.0.1:8009 pkar443@10.104.147.2
-curl.exe http://127.0.0.1:8009/health
+export REMOTE_INFER_HOST=0.0.0.0
+bash remote_infer/start.sh
+curl http://10.104.147.2:8009/health
 ```
 
-If your laptop reports `bind [127.0.0.1]:8009: Permission denied` or the port is already in use, keep the Hades side on `127.0.0.1:8009` and choose a different free local port instead:
-
-```bash
-ssh -N -L 18009:127.0.0.1:8009 pkar443@10.104.147.2
-curl.exe http://127.0.0.1:18009/health
-```
-
-Service details and SSH tunnel usage are documented in [remote_infer/README.md](./remote_infer/README.md).
+Service details and direct network usage are documented in [remote_infer/README.md](./remote_infer/README.md).
 
 ## Notes
 

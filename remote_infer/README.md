@@ -1,6 +1,6 @@
 # Remote Infer Service
 
-This directory contains a minimal FastAPI service that loads MedGemma once at startup on the Hades workstation and exposes simple localhost HTTP endpoints for text inference, legacy text-only report generation, and the current Version 2 CT image-aware workflow.
+This directory contains a minimal FastAPI service that loads MedGemma once at startup on the Hades workstation and exposes HTTP endpoints for text inference, legacy text-only report generation, and the current Version 2 CT image-aware workflow.
 
 This first version is intended as a stable remote inference scaffold for manual testing and later integration. The HTTP service, startup path, health checks, model loading, and response normalization are the primary goals here.
 
@@ -12,7 +12,7 @@ This first version is intended as a stable remote inference scaffold for manual 
 - `config.py`: environment-backed runtime configuration and generation defaults
 - `auth.py`: optional bearer-token check
 - `utils.py`: logging, env bootstrapping, token sync, data URL decoding, MedGemma message assembly, prompt passthrough, and response normalization
-- `start.sh`: activates the conda env and starts uvicorn on localhost
+- `start.sh`: activates the conda env and starts uvicorn on the configured network interface
 - `test_request.sh`: sends sample health, text, report, and image-aware requests to the running service
 
 ## Required Environment Variables
@@ -29,6 +29,9 @@ These can be exported in the shell or placed in `hades_setup/.env`:
 - `REMOTE_INFER_PORT`
 - `REMOTE_INFER_AUTH_TOKEN`
 - `REMOTE_INFER_DEBUG`
+- `ORTHANC_BASE_URL`
+- `ORTHANC_USERNAME`
+- `ORTHANC_PASSWORD`
 - `MEDGEMMA_MAX_NEW_TOKENS`
 - `MEDGEMMA_DEFAULT_TEMPERATURE`
 - `MEDGEMMA_DEFAULT_TOP_P`
@@ -45,10 +48,11 @@ Notes:
 
 - If both `MEDGEMMA_MODEL_PATH` and `MEDGEMMA_MODEL_ID` are set, the local path is preferred.
 - `MEDGEMMA_DEVICE_MAP` defaults to `single`, which loads the full MedGemma 4B model on the first visible GPU. Set `MEDGEMMA_DEVICE_MAP=auto` only if you intentionally want Hugging Face device sharding.
-- `REMOTE_INFER_HOST` defaults to `127.0.0.1`.
+- `REMOTE_INFER_HOST` defaults to `127.0.0.1`. Set it to `0.0.0.0` when the Radiomed dashboard reaches Hades directly over the university network.
 - `REMOTE_INFER_PORT` defaults to `8009`.
 - If `REMOTE_INFER_AUTH_TOKEN` is empty, bearer auth is bypassed.
 - `REMOTE_INFER_DEBUG=true` keeps the request/output logs more verbose while still truncating previews.
+- `ORTHANC_BASE_URL`, `ORTHANC_USERNAME`, and `ORTHANC_PASSWORD` are required for the direct Orthanc pull workflow on `/infer-image-report`.
 - `/infer-report-test` uses `MEDGEMMA_REPORT_MAX_NEW_TOKENS=240`, `MEDGEMMA_REPORT_DO_SAMPLE=false`, `MEDGEMMA_REPORT_TEMPERATURE=0.0`, and `MEDGEMMA_REPORT_TOP_P=1.0` by default unless you override them in `hades_setup/.env`.
 - `/infer-image-report` uses `MEDGEMMA_IMAGE_REPORT_MAX_NEW_TOKENS=900`, `MEDGEMMA_IMAGE_REPORT_DO_SAMPLE=false`, `MEDGEMMA_IMAGE_REPORT_TEMPERATURE=0.0`, and `MEDGEMMA_IMAGE_REPORT_TOP_P=1.0` by default unless you override them in `hades_setup/.env`.
 
@@ -101,28 +105,10 @@ If you want deeper request/output visibility while debugging, set this in `hades
 REMOTE_INFER_DEBUG=true
 ```
 
-From your laptop, create the SSH tunnel:
+If `REMOTE_INFER_HOST=0.0.0.0`, test direct access from the Windows dashboard machine instead of using SSH tunneling:
 
 ```bash
-ssh -N -L 8009:127.0.0.1:8009 pkar443@10.104.147.2
-```
-
-If the laptop-side bind to `8009` fails, choose any other free local port and keep the remote side on `127.0.0.1:8009`:
-
-```bash
-ssh -N -L 18009:127.0.0.1:8009 pkar443@10.104.147.2
-```
-
-Then test through the tunnel:
-
-```bash
-curl.exe http://127.0.0.1:8009/health
-```
-
-If you used `18009` locally, test that port instead:
-
-```bash
-curl.exe http://127.0.0.1:18009/health
+curl http://10.104.147.2:8009/health
 ```
 
 ## Prompt Ownership
@@ -130,14 +116,14 @@ curl.exe http://127.0.0.1:18009/health
 The main app is the source of truth for report prompt construction.
 
 - The preferred `POST /infer-report-test` flow is for the caller to send a full plain-text `prompt`.
-- The preferred `POST /infer-image-report` flow is for the caller to send the already-selected `n-1`, `n`, and `n+1` CT slice images plus compact `instruction` and `query` text.
+- The preferred `POST /infer-image-report` flow is for the caller to send either the already-selected `n-1`, `n`, and `n+1` CT slice images or an Orthanc reference payload plus compact `instruction` and `query` text.
 - Hades owns inference and optional response normalization only.
 - A legacy compatibility path still accepts `study_id`, `modality`, `body_part`, `clinical_context`, and `findings_input`, but Hades now combines them in a thin passthrough form only.
 - Hades no longer carries a second detailed radiology prompt template and does not re-select slices or rebuild report business logic.
 
 ## Image-Aware CT Endpoint
 
-`POST /infer-image-report` is the Hades-side MedGemma image-aware endpoint for the current RadPilot Automatic CT workflow. The main app selects anchor groups and owns the instruction/query text. Hades trusts that ordered payload, decodes the images, runs MedGemma in notebook-style image-text mode, and normalizes the response.
+`POST /infer-image-report` is the Hades-side MedGemma image-aware endpoint for the current RadPilot Automatic CT workflow. The main app owns the instruction/query text. Hades either trusts the ordered image payload directly or resolves the requested CT series from Orthanc, fetches the slice previews it needs, and then runs MedGemma in notebook-style image-text mode before normalizing the response.
 
 Request shape:
 

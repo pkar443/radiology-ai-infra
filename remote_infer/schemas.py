@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
@@ -19,6 +19,7 @@ AnchorIdStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length
 AnchorLabelStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
 SopInstanceUidStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]
 SelectionStrategyStr = Literal["deterministic-uniform-non-overlapping-triplets"]
+OrthancReferenceSelectionStrategyStr = Literal["orthanc-reference-by-uid"]
 ConfidenceStr = Literal["low", "medium", "high"]
 OrganStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
 FindingIdStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
@@ -223,6 +224,86 @@ class ImageReportInferRequest(BaseModel):
         if provided_flattened != expected_flattened:
             raise ValueError("slices must be the ordered flattened compatibility copy of anchor_groups.")
 
+        return self
+
+
+class OrthancReferenceStudyMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    study_id: StudyIdStr | None = None
+    study_instance_uid: StudyIdStr | None = None
+    orthanc_study_id: StudyIdStr | None = None
+    modality: ModalityStr | None = None
+    body_part: BodyPartStr | None = None
+    clinical_indication: ClinicalContextStr | None = None
+    study_date: str | None = Field(default=None, max_length=64)
+    series_description: str | None = Field(default=None, max_length=512)
+    series_number: int | None = None
+    slice_count: int | None = None
+    plane: str | None = Field(default=None, max_length=64)
+    orthanc_public_base_url: str | None = Field(default=None, max_length=512)
+    orthanc_remote_access_allowed: bool = False
+
+    @field_validator(
+        "study_id",
+        "study_instance_uid",
+        "orthanc_study_id",
+        "modality",
+        "body_part",
+        "clinical_indication",
+        "study_date",
+        "series_description",
+        "plane",
+        "orthanc_public_base_url",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_metadata_strings(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        stripped = value.strip()
+        return stripped or None
+
+
+class OrthancReferenceInferRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: RequestIdStr | None = None
+    study_id: StudyIdStr | None = None
+    study_instance_uid: StudyIdStr
+    series_instance_uid: SeriesUidStr
+    orthanc_study_id: StudyIdStr
+    orthanc_series_id: StudyIdStr
+    modality: Literal["CT"] | None = None
+    body_part: BodyPartStr | None = None
+    clinical_context: ClinicalContextStr | None = None
+    instruction: InstructionStr
+    query: QueryStr
+    selection_strategy: OrthancReferenceSelectionStrategyStr
+    questionnaire_context: dict[str, Any] | None = None
+    study_metadata: OrthancReferenceStudyMetadata | None = None
+    request_source: str | None = Field(default=None, max_length=128)
+
+    @field_validator(
+        "request_id",
+        "study_id",
+        "body_part",
+        "clinical_context",
+        "request_source",
+        mode="before",
+    )
+    @classmethod
+    def normalize_optional_strings(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        stripped = value.strip()
+        return stripped or None
+
+    @model_validator(mode="after")
+    def validate_remote_access_enabled(self) -> "OrthancReferenceInferRequest":
+        metadata = self.study_metadata
+        if metadata is not None and not metadata.orthanc_remote_access_allowed:
+            raise ValueError("study_metadata.orthanc_remote_access_allowed must be true for Orthanc reference requests.")
         return self
 
 
